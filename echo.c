@@ -12,12 +12,13 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <errno.h>
+#define MAXLINE 201
 
 /*
 Write a number of bytes equal to length from the buffer to the socket. Returns the total number of bytes written, or -1 on error.
 */
 ssize_t writen(int client_socket, const char *buffer, size_t length) {
-    ssize_t total_written = 0;
+    size_t total_written = 0;
     while (total_written < length) {                                                                    // loop until all bytes are written
         ssize_t bytes_written = write(client_socket, buffer + total_written, length - total_written);
         if (bytes_written < 0) {
@@ -37,7 +38,7 @@ ssize_t writen(int client_socket, const char *buffer, size_t length) {
 Read a line of text from the socket into the buffer. Returns the number of bytes read, or -1 on error.
 */
 ssize_t readline(int client_socket, char *buffer, size_t max_length) {
-    ssize_t total_read = 0;
+    size_t total_read = 0;
     while (total_read < max_length - 1) {                        // Leave space for null terminator '\0' to avoid buffer overrun
         unsigned char c;
         ssize_t bytes_read = read(client_socket, &c, 1);
@@ -64,20 +65,27 @@ ssize_t readline(int client_socket, char *buffer, size_t max_length) {
 int main(int argc, char *argv[]) {  // argv[1] the IP string, argv[2] the port string
     
     int client_socket;
-    char buffer[BUFSIZ];
+    char buffer[MAXLINE];
     struct sockaddr_in server_addr;
-
-    // Initialize server address structure
-    server_addr.sin_port = htons(atoi(argv[2]));            // convert port number from string to integer and then to network byte order
-    server_addr.sin_family = AF_INET;
-    if((inet_aton(argv[1], &server_addr.sin_addr) == 0)){   // convert IP address from string to binary form and check for validity
-        fprintf(stderr, "Invalid IP address\n");
-        return -1;
-    }
 
     // Check for correct number of command line arguments
     if (argc != 3) {   
-        fprintf(stderr, "Usage: echo <IP Address> <Port Number>\n");
+        printf("Usage: echo <IP Address> <Port Number>\n");
+        return -1;
+    }
+
+    int port = atoi(argv[2]); // convert port number from string to integer
+    if (port <= 0 || port > 65535) {
+        printf("Invalid port number\n");
+        return -1;
+    }
+
+    // Initialize server address structure
+    memset(&server_addr, 0, sizeof(server_addr));   // zero the struct to avoid garbage values
+    server_addr.sin_port = htons(port);            // convert port number to network byte order
+    server_addr.sin_family = AF_INET;
+    if((inet_aton(argv[1], &server_addr.sin_addr) == 0)){   // convert IP address from string to binary form and check for validity
+        printf("Invalid IP address\n");
         return -1;
     }
 
@@ -93,9 +101,12 @@ int main(int argc, char *argv[]) {  // argv[1] the IP string, argv[2] the port s
         return -1;
     }
 
+    printf("Connected to server %s:%s\n", argv[1], argv[2]);
+    printf("Enter text to send to the server. Press Ctrl+D (EOF) to exit.\n");
     // Main loop: read from stdin, send to server, read echo from server, print to stdout
     while (1){
-        if(fgets(buffer, sizeof(buffer), stdin) == NULL){ // check for EOF
+        if((fgets(buffer, sizeof(buffer), stdin) == NULL) || feof(stdin)){ // check for EOF
+            printf("EOF detected.\n");
             break;
         }
         else{
@@ -111,7 +122,7 @@ int main(int argc, char *argv[]) {  // argv[1] the IP string, argv[2] the port s
                 return -1; // error occurred
             }
             else if (n == 0) {
-                fprintf(stderr, "Server closed the connection\n");
+                printf("Server closed the connection\n");
                 break;
             }
             else {
@@ -120,6 +131,7 @@ int main(int argc, char *argv[]) {  // argv[1] the IP string, argv[2] the port s
             }
         }
     }
+    printf("Closing connection.\n");
     close(client_socket); // close the socket due to EOF or server closing the connection
     return 0;
 }

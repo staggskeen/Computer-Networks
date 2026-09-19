@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g
+CFLAGS = -Wall -Wextra -Werror -g
 
 all: echos echo
 
@@ -11,3 +11,4 @@ echo: echo.c
 
 clean:
 	rm -f echos echo *.o
+	rm -rf *.dSYM
